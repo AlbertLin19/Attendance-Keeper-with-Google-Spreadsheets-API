@@ -12,6 +12,7 @@
 			<attribute name="gradle_used_by_scope" value="main,test"/>
 		</attributes>
 	</classpathentry>
+	<classpathentry kind="con" path="org.eclipse.buildship.core.gradleclasspathcontainer"/>
 	<classpathentry path="bin/default" kind="output"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.7/"/>
 	<classpathentry sourcepath="C:/Users/Albert Lin/.gradle/caches/modules-2/files-2.1/com.google.apis/google-api-services-sheets/v4-rev495-1.23.0/26f5987692e96dcf4871d2bc59ba01d052ee44f3/google-api-services-sheets-v4-rev495-1.23.0-sources.jar" kind="lib" path="C:/Users/Albert Lin/.gradle/caches/modules-2/files-2.1/com.google.apis/google-api-services-sheets/v4-rev495-1.23.0/426431c9e2dae2c1e3587844975c6037c51840b9/google-api-services-sheets-v4-rev495-1.23.0.jar">

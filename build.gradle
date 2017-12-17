@@ -2,7 +2,8 @@ apply plugin: 'java'
 apply plugin: 'application'
 apply plugin: 'eclipse'
 
-mainClassName = 'Quickstart'
+
+mainClassName = 'AttendanceRunner'
 sourceCompatibility = 1.7
 targetCompatibility = 1.7
 version = '1.0'
@@ -17,4 +18,9 @@ dependencies {
     compile 'com.google.apis:google-api-services-sheets:v4-rev495-1.23.0'
     
     
+}
+
+task "create-dirs" << {
+   sourceSets*.java.srcDirs*.each { it.mkdirs() }
+   sourceSets*.resources.srcDirs*.each { it.mkdirs() }
 }

@@ -15,4 +15,4 @@ include 'api'
 include 'services:webservice'
 */
 
-rootProject.name = 'Test'
+rootProject.name = 'FRC Team Charging Champions 2017 Pre Season Attendance Keeper'

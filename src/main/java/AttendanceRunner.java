@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Scanner;
+import java.util.StringTokenizer;
 
 //altered the Quickstart template given by Google API tutorials to use with
 //my attendance keeping program - Albert Lin
@@ -45,13 +46,37 @@ public class AttendanceRunner {
     /** Global instance of the HTTP transport. */
     private static HttpTransport HTTP_TRANSPORT;
 
-    /** Global instance of the scopes required by this quickstart.
+    /** Global instance of the scopes required.
      *
      * If modifying these scopes, delete your previously saved credentials
-     * at ~/.credentials/sheets.googleapis.com-java-quickstart
+     * 
      */
     private static final List<String> SCOPES =
         Arrays.asList(SheetsScopes.SPREADSHEETS);
+    
+    //list of Members
+    static ArrayList<Member> roster = new ArrayList<>();
+    
+    //row number of the official meeting times
+    static int officialRow = 2;
+    
+    //column letter of first date
+    static String officialCol = "H";
+    
+    static String currentCol;
+    
+    static String attendanceRateCol = "D";
+    
+    static String hourRateCol = "E";
+    
+    static String numOfDaysCol = "F";
+    
+    static String numOfHoursCol = "G";
+    
+    //sheet service reference for entire class to use
+    static Sheets sheetService;
+    
+    static String sheetSpreadsheetId;
 
     static {
     	if (System.getProperty("os.name").equals("Linux")) {
@@ -112,14 +137,18 @@ public class AttendanceRunner {
 
     public static void main(String[] args) throws IOException {
     	
-    	ArrayList<Member> roster = new ArrayList<>();
     	String currentColumn = "";
     	
         // Build a new authorized API client service.
         Sheets service = getSheetsService();
+        
+        //give the reference to the class field for outside use
+        sheetService = service;
 
         // Get Old Date and Old Column
         String spreadsheetId = "1L9D1xp9WsVt0UkRq9ggEhWJged5NRxlaRmQOdIE8clg";
+        //give the ID to class field for further use
+        sheetSpreadsheetId = spreadsheetId;
         String oldDateRange = "Attendance Sheet!A2:A2";
         String oldColumnRange = "Attendance Sheet!A5:A5";
         ValueRange oldDateList = service.spreadsheets().values()
@@ -154,7 +183,6 @@ public class AttendanceRunner {
 
 	    	UpdateValuesResponse response = request.execute();
 
-	    	// TODO: Change code below to process the `response` object:
 	    	System.out.println(response);
 			String newColumn = "";
 	    	if (!oldColumn.substring(oldColumn.length()-1, oldColumn.length()).equalsIgnoreCase("Z") || !oldColumn.substring(oldColumn.length()-1, oldColumn.length()).equalsIgnoreCase("Y")) {
@@ -197,23 +225,8 @@ public class AttendanceRunner {
 		    	    	// TODO: Change code below to process the `response` object:
 		    	    	System.out.println(response2);
 		}
-		
-		//refresh any that needs to be refreshed
-		String refreshIndicatorRange = "Attendance Sheet!B2:B";
-		ValueRange refreshList = service.spreadsheets().values()
-	            .get(spreadsheetId, refreshIndicatorRange)
-	            .execute();
-	        List<List<Object>> refreshIndicatorValues = refreshList.getValues();
-	        if (refreshIndicatorValues == null || refreshIndicatorValues.size() == 0) {
-	            System.out.println("No refresh needed.");
-	        } else {
-	          for (int i = 0; i <refreshIndicatorValues.size(); i++) {
-	            //refresh
-	          }
-	          
-	        }
-
-		
+		//giving the current column to class field for further use
+		currentCol = currentColumn;
 		//create an arrayList of members based on spreadsheet
         String nameListRange = "Attendance Sheet!C3:C";
         ValueRange nameList = service.spreadsheets().values()
@@ -229,13 +242,37 @@ public class AttendanceRunner {
           
         }
         
-        printRoster(roster);
+        printRoster();
+		
+		//refresh any that needs to be refreshed
+		String refreshIndicatorRange = "Attendance Sheet!B2:B";
+		ValueRange refreshList = service.spreadsheets().values()
+	            .get(spreadsheetId, refreshIndicatorRange)
+	            .execute();
+	        List<List<Object>> refreshIndicatorValues = refreshList.getValues();
+	        if (refreshIndicatorValues == null || refreshIndicatorValues.size() == 0) {
+	            System.out.println("No refresh needed.");
+	        } else {
+	          for (int i = 0; i <refreshIndicatorValues.size(); i++) {
+	        	  if (((String)(refreshIndicatorValues.get(i).get(0))).length()!=0) {
+	        		  System.out.println("Refreshing " + roster.get(i+2).getName());
+	        		  refresh(i+2);
+	        		
+	        	  }
+	            
+	          }
+	          
+	        }
         
         //taking roll
+	    //enter a time for a person by typing his or her name followed by a return key
+	    //refresh all members' statistics by typing "refresh" followed by a return key
+	    //refresh a particular member's statistics by typing in "refresh" followed by his or her name, followed by an enter key
+	    //quit by typing "quit"
         boolean takingRoll = true;
         Scanner input = new Scanner(System.in);
         while (takingRoll) {
-        	
+        	System.out.println("Log in/out by typing your first name as listed on the attendance sheet (not case-sensitive) on the Google spreadsheet and hitting the enter key: ");
         	if (input.hasNext())
         	{
         	String nameInput = input.next().trim();
@@ -259,6 +296,8 @@ public class AttendanceRunner {
         			    	Sheets.Spreadsheets.Values.Update requestForTime =
         			    	service.spreadsheets().values().update(spreadsheetId, "Attendance Sheet!"+currentColumn+mem.getRowNumber()+":"+currentColumn+mem.getRowNumber(), requestBodyForTime);
         			    	requestForTime.setValueInputOption("USER_ENTERED");
+        			    	
+        			    	System.out.println("Entering a time in for " + mem.getName());
 
         			    	UpdateValuesResponse responseTime = requestForTime.execute();
         			    	
@@ -288,6 +327,8 @@ public class AttendanceRunner {
         			    	Sheets.Spreadsheets.Values.Update requestForTime =
         			    	service.spreadsheets().values().update(spreadsheetId, "Attendance Sheet!"+nextColumn+mem.getRowNumber()+":"+nextColumn+mem.getRowNumber(), requestBodyForTime);
         			    	requestForTime.setValueInputOption("USER_ENTERED");
+        			    	
+        			    	System.out.println("Entering a time out for " + mem.getName());
 
         			    	UpdateValuesResponse responseTime = requestForTime.execute();
         			    	
@@ -296,7 +337,24 @@ public class AttendanceRunner {
         		}
         	}
         	
+        	if (nameInput.substring(0, 6).equalsIgnoreCase("refresh")) {
+        		if (nameInput.length()==6) {
+        			System.out.println("Refreshing all...");
+        			for (Member mem : roster) {
+        				refresh(mem.getRowNumber());
+        			}
+        		} else {
+        			for (Member mem : roster) {
+        				if (mem.getName().equalsIgnoreCase(nameInput.substring(6))) {
+        					System.out.println("Refreshing " + mem.getName());
+        					refresh(mem.getRowNumber());
+        				}
+        			}
+        		}
+        	}
+        	
         	if (nameInput.equalsIgnoreCase("quit")) {
+        		System.out.println("Quitting...");
         		takingRoll = false;
         	}
         	}
@@ -304,10 +362,72 @@ public class AttendanceRunner {
         input.close();
     }
     
-    public static void printRoster(ArrayList<Member> roster) {
+    public static void printRoster() {
     	for (Member mem : roster) {
     		System.out.println("Member name: " + mem.getName() + "\t Member row number: " + mem.getRowNumber());
     	}
+    }
+    
+    public static void refresh(int rowNum) throws IOException {
+    	double attendanceRate = ((double) getTotalDays(rowNum))/getTotalDays(officialRow);
+    	double hourRate = ((double) getTotalHours(rowNum))/getTotalHours(officialRow);
+    	int numOfDays = getTotalDays(rowNum);
+    	double numOfHours = getTotalHours(rowNum);
+    	
+    	List<List<Object>> stats = Arrays.asList(
+				Arrays.asList((Object)attendanceRate, (Object)hourRate, (Object)numOfDays, (Object)numOfHours)
+					// Additional rows ...
+					);
+					ValueRange requestBodyForStats = new ValueRange()
+					.setValues(stats);
+	    	Sheets.Spreadsheets.Values.Update requestForStats =
+	    	sheetService.spreadsheets().values().update(sheetSpreadsheetId, "Attendance Sheet!"+attendanceRateCol+rowNum+":"+numOfHoursCol+rowNum, requestBodyForStats);
+	    	requestForStats.setValueInputOption("USER_ENTERED");
+	    	UpdateValuesResponse responseStats = requestForStats.execute();
+	    	
+    	
+    }
+    
+    public static int getTotalDays(int rowNum) throws IOException {
+    	ValueRange dayList = sheetService.spreadsheets().values()
+	            .get(sheetSpreadsheetId, "Attendance Sheet!"+officialCol+rowNum+":"+currentCol+rowNum)
+	            .execute();
+	        List<List<Object>> dayValues = dayList.getValues();
+	        int dayNum = 0;
+	        for (List<Object> list : dayValues) {
+	        	for (int i = 0; i < list.size(); i+=2) {
+	        		if (((String) list.get(i)).length()!=0) {
+	        			dayNum++;
+	        		}
+	        	}
+	        }
+		return dayNum;
+    	
+    }
+    
+    public static double getTotalHours(int rowNum) throws IOException {
+    	ValueRange hourList = sheetService.spreadsheets().values()
+	            .get(sheetSpreadsheetId, "Attendance Sheet!"+officialCol+rowNum+":"+currentCol+rowNum)
+	            .execute();
+	        List<List<Object>> hourValues = hourList.getValues();
+	        double hourNum = 0;
+	        for (List<Object> list : hourValues) {
+	        	for (int i = 0; i < list.size(); i+=2) {
+	        		if (((String) list.get(i)).length()!=0 && ((String) list.get(i+1)).length()!=0) {
+	        			String timeIn = (String) list.get(i);
+	        			String timeOut = (String) list.get(i+1);
+	        			
+	        			StringTokenizer str1 = new StringTokenizer(timeIn, ":");
+	        			StringTokenizer str2 = new StringTokenizer(timeOut, ":");
+	        			int fullHours = Integer.parseInt(str2.nextToken())-Integer.parseInt(str1.nextToken());
+	        			hourNum+=fullHours;
+	        			double partialHours = Integer.parseInt(str2.nextToken())/60-Integer.parseInt(str1.nextToken())/60;
+	        			hourNum+=partialHours;
+	        		}
+	        	}
+	        }
+		return hourNum;
+    	
     }
 
 

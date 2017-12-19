@@ -64,6 +64,7 @@ public class AttendanceRunner {
     static String officialCol = "H";
     
     static String currentCol;
+    static String nextCol;
     
     static String attendanceRateCol = "D";
     
@@ -135,7 +136,7 @@ public class AttendanceRunner {
                 .build();
     }
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, InterruptedException {
     	
     	String currentColumn = "";
     	
@@ -227,6 +228,25 @@ public class AttendanceRunner {
 		}
 		//giving the current column to class field for further use
 		currentCol = currentColumn;
+		//getting the next column
+		if (!currentCol.substring(currentCol.length()-1, currentCol.length()).equalsIgnoreCase("Z") || !currentCol.substring(currentCol.length()-1, currentCol.length()).equalsIgnoreCase("Y")) {
+    		int charValue = currentCol.charAt(currentCol.length()-1);
+    		if (currentCol.length()>1) {
+    			nextCol = currentCol.substring(0, currentCol.length()-1) + String.valueOf((char) (charValue + 2));
+    			
+    		} else {
+    			nextCol = String.valueOf((char) (charValue + 2));
+    			
+    		}
+    	} else {
+    		if (!currentCol.substring(currentCol.length()-1, currentCol.length()).equalsIgnoreCase("Y")) {
+    			nextCol = "AA";
+    			
+    		} else {
+    			nextCol = "AA";
+    		}
+    	}
+		
 		//create an arrayList of members based on spreadsheet
         String nameListRange = "Attendance Sheet!C3:C";
         ValueRange nameList = service.spreadsheets().values()
@@ -275,7 +295,7 @@ public class AttendanceRunner {
         	System.out.println("Log in/out by typing your first name as listed on the attendance sheet (not case-sensitive) on the Google spreadsheet and hitting the enter key: ");
         	if (input.hasNext())
         	{
-        	String nameInput = input.next().trim();
+        	String nameInput = input.nextLine().trim();
         	for (Member mem : roster) {
         		if (nameInput.equalsIgnoreCase(mem.getName())) {
         			String timeListRange = "Attendance Sheet!"+currentColumn+mem.getRowNumber()+":"+currentColumn+mem.getRowNumber();
@@ -337,15 +357,17 @@ public class AttendanceRunner {
         		}
         	}
         	
-        	if (nameInput.substring(0, 6).equalsIgnoreCase("refresh")) {
-        		if (nameInput.length()==6) {
+        	if (nameInput.length()>=7 && nameInput.substring(0, 7).equalsIgnoreCase("refresh")) {
+        		if (nameInput.length()==7) {
         			System.out.println("Refreshing all...");
         			for (Member mem : roster) {
         				refresh(mem.getRowNumber());
+        				//the below does not seem to help - this is necessary to avoid google api from causing a resource exhausted error (when the rate of writing to sheets is exceeded)
+        				//Thread.sleep(500);
         			}
         		} else {
         			for (Member mem : roster) {
-        				if (mem.getName().equalsIgnoreCase(nameInput.substring(6))) {
+        				if (mem.getName().equalsIgnoreCase(nameInput.substring(8))) {
         					System.out.println("Refreshing " + mem.getName());
         					refresh(mem.getRowNumber());
         				}
@@ -371,11 +393,14 @@ public class AttendanceRunner {
     public static void refresh(int rowNum) throws IOException {
     	double attendanceRate = ((double) getTotalDays(rowNum))/getTotalDays(officialRow);
     	double hourRate = ((double) getTotalHours(rowNum))/getTotalHours(officialRow);
+    	String attendanceRateString = attendanceRate*100 + "%";
+    	String hourRateString = hourRate*100 + "%";
     	int numOfDays = getTotalDays(rowNum);
     	double numOfHours = getTotalHours(rowNum);
     	
+    	System.out.println("Printing out stats...");
     	List<List<Object>> stats = Arrays.asList(
-				Arrays.asList((Object)attendanceRate, (Object)hourRate, (Object)numOfDays, (Object)numOfHours)
+				Arrays.asList((Object)attendanceRateString, (Object)hourRateString, (Object)numOfDays, (Object)numOfHours)
 					// Additional rows ...
 					);
 					ValueRange requestBodyForStats = new ValueRange()
@@ -390,43 +415,53 @@ public class AttendanceRunner {
     
     public static int getTotalDays(int rowNum) throws IOException {
     	ValueRange dayList = sheetService.spreadsheets().values()
-	            .get(sheetSpreadsheetId, "Attendance Sheet!"+officialCol+rowNum+":"+currentCol+rowNum)
+	            .get(sheetSpreadsheetId, "Attendance Sheet!"+officialCol+rowNum+":"+nextCol+rowNum)
 	            .execute();
 	        List<List<Object>> dayValues = dayList.getValues();
 	        int dayNum = 0;
-	        for (List<Object> list : dayValues) {
-	        	for (int i = 0; i < list.size(); i+=2) {
-	        		if (((String) list.get(i)).length()!=0) {
-	        			dayNum++;
+	        if (dayValues != null && dayValues.size()!=0) {
+	        	for (List<Object> list : dayValues) {
+	        		for (int i = 0; i < list.size(); i+=2) {
+	        			if (((String) list.get(i)).length()!=0) {
+	        				dayNum++;
+	        			}
 	        		}
 	        	}
+	        	return dayNum;
+	        } else {
+	        	System.out.println("No data found for row number " + rowNum);
+	        	return 0;
 	        }
-		return dayNum;
     	
     }
     
     public static double getTotalHours(int rowNum) throws IOException {
     	ValueRange hourList = sheetService.spreadsheets().values()
-	            .get(sheetSpreadsheetId, "Attendance Sheet!"+officialCol+rowNum+":"+currentCol+rowNum)
+	            .get(sheetSpreadsheetId, "Attendance Sheet!"+officialCol+rowNum+":"+nextCol+rowNum)
 	            .execute();
 	        List<List<Object>> hourValues = hourList.getValues();
 	        double hourNum = 0;
-	        for (List<Object> list : hourValues) {
-	        	for (int i = 0; i < list.size(); i+=2) {
-	        		if (((String) list.get(i)).length()!=0 && ((String) list.get(i+1)).length()!=0) {
-	        			String timeIn = (String) list.get(i);
-	        			String timeOut = (String) list.get(i+1);
-	        			
-	        			StringTokenizer str1 = new StringTokenizer(timeIn, ":");
-	        			StringTokenizer str2 = new StringTokenizer(timeOut, ":");
-	        			int fullHours = Integer.parseInt(str2.nextToken())-Integer.parseInt(str1.nextToken());
-	        			hourNum+=fullHours;
-	        			double partialHours = Integer.parseInt(str2.nextToken())/60-Integer.parseInt(str1.nextToken())/60;
-	        			hourNum+=partialHours;
-	        		}
-	        	}
+	        if (hourValues != null && hourValues.size()!=0) {
+	        	for (List<Object> list : hourValues) {
+		        	for (int i = 0; i < list.size(); i+=2) {
+		        		if (((String) list.get(i)).length()!=0 && ((String) list.get(i+1)).length()!=0) {
+		        			String timeIn = (String) list.get(i);
+		        			String timeOut = (String) list.get(i+1);
+		        			
+		        			StringTokenizer str1 = new StringTokenizer(timeIn, ":");
+		        			StringTokenizer str2 = new StringTokenizer(timeOut, ":");
+		        			int fullHours = Integer.parseInt(str2.nextToken())-Integer.parseInt(str1.nextToken());
+		        			hourNum+=fullHours;
+		        			double partialHours = Double.parseDouble(str2.nextToken())/60-Double.parseDouble(str1.nextToken())/60;
+		        			hourNum+=partialHours;
+		        		}
+		        	}
+		        }
+	        	return hourNum;
+	        } else {
+	        	System.out.println("No data found for row number " + rowNum);
+	        	return 0;
 	        }
-		return hourNum;
     	
     }
 

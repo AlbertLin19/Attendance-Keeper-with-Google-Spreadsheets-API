@@ -60,10 +60,11 @@ public class AttendanceRunner {
     //row number of the official meeting times
     static int officialRow = 2;
     
-    //column letter of first date
-    static String officialCol = "H";
+    //column letter of important first columns
+    static String attendanceStartCol;
+    static String hourStartCol;
     
-    static String currentCol;
+    static String currentColumn;
     static String nextCol;
     
     static String attendanceRateCol = "D";
@@ -78,8 +79,15 @@ public class AttendanceRunner {
     static Sheets sheetService;
     
     static String sheetSpreadsheetId;
+    
+    //ArrayList to hold values of the columns of a Google Spreadsheet until "BZ"
+    static ArrayList<String> columnArray;
+    
+    //the row the first member (including member "Team") is off from the top
+    static int rowNumOffset = 2;
 
     static {
+    	columnArray = getColumnArray();
     	if (System.getProperty("os.name").equals("Linux")) {
     		System.out.println("Hopefully, this is Linux.");
     		DATA_STORE_DIR = new java.io.File(
@@ -138,8 +146,6 @@ public class AttendanceRunner {
 
     public static void main(String[] args) throws IOException, InterruptedException {
     	
-    	String currentColumn = "";
-    	
         // Build a new authorized API client service.
         Sheets service = getSheetsService();
         
@@ -164,12 +170,27 @@ public class AttendanceRunner {
         String oldColumn = (String) columnValue.get(0).get(0);
         currentColumn = oldColumn;
         
+        //getting start column for attendance and hour rates
+        String attendanceStartColRange = "Attendance Sheet!A8:A8";
+        String hourStartColRange = "Attendance Sheet!A11:A11";
+        ValueRange attendanceStartColList = service.spreadsheets().values()
+            .get(spreadsheetId, attendanceStartColRange)
+            .execute();
+        List<List<Object>> attendanceStartColValue = attendanceStartColList.getValues();
+        ValueRange hourStartColList = service.spreadsheets().values()
+            .get(spreadsheetId, hourStartColRange)
+            .execute();
+        List<List<Object>> hourStartColValue = hourStartColList.getValues();
+        attendanceStartCol = (String) attendanceStartColValue.get(0).get(0);
+        hourStartCol = (String) hourStartColValue.get(0).get(0);
+        
         //get the current date
         Date date = new Date();
 		DateFormat dateFormat = new SimpleDateFormat("MM/dd/yy");
 		String newDate = dateFormat.format(date);
 		
-		
+		//writing new date if it is a new day and setting and writing new column
+		//also giving new column value to currentColumn variable for further use
 		if (!newDate.equals(oldDate)) {
 			
 			List<List<Object>> values = Arrays.asList(
@@ -185,28 +206,12 @@ public class AttendanceRunner {
 	    	UpdateValuesResponse response = request.execute();
 
 	    	System.out.println(response);
-			String newColumn = "";
-	    	if (!oldColumn.substring(oldColumn.length()-1, oldColumn.length()).equalsIgnoreCase("Z") || !oldColumn.substring(oldColumn.length()-1, oldColumn.length()).equalsIgnoreCase("Y")) {
-	    		int charValue = oldColumn.charAt(oldColumn.length()-1);
-	    		if (oldColumn.length()>1) {
-	    			newColumn = oldColumn.substring(0, oldColumn.length()-1) + String.valueOf((char) (charValue + 2));
-	    			currentColumn = newColumn;
-	    		} else {
-	    			newColumn = String.valueOf((char) (charValue + 2));
-	    			currentColumn = newColumn;
-	    		}
-	    	} else {
-	    		if (!oldColumn.substring(oldColumn.length()-1, oldColumn.length()).equalsIgnoreCase("Y")) {
-	    			newColumn = "AA";
-	    			currentColumn = newColumn;
-	    		} else {
-	    			newColumn = "AA";
-	    			currentColumn = newColumn;
-	    		}
-	    		
-	    	}
+	    	System.out.println("Creating a new column for a new day!");
+	    	currentColumn = columnArray.get(columnArray.indexOf(oldColumn)+2);
+	    	
+	    	//writing out the new column
 	    	List<List<Object>> columnVal = Arrays.asList(
-					Arrays.asList((Object) (String) (newColumn))
+					Arrays.asList((Object) (String) (currentColumn))
 						// Additional rows ...
 						);
 						ValueRange requestBodyForCol = new ValueRange()
@@ -216,9 +221,10 @@ public class AttendanceRunner {
 		    	requestForCol.setValueInputOption("USER_ENTERED");
 
 		    	UpdateValuesResponse responseCol = requestForCol.execute();
+		    	System.out.println(responseCol);
 		    	
 		    	Sheets.Spreadsheets.Values.Update request2 =
-		    	    	service.spreadsheets().values().update(spreadsheetId, "Attendance Sheet!" + newColumn + "1:" + newColumn + "1", requestBody);
+		    	    	service.spreadsheets().values().update(spreadsheetId, "Attendance Sheet!" + currentColumn + "1:" + currentColumn + "1", requestBody);
 		    	    	request2.setValueInputOption("USER_ENTERED");
 
 		    	    	UpdateValuesResponse response2 = request2.execute();
@@ -226,29 +232,12 @@ public class AttendanceRunner {
 		    	    	// TODO: Change code below to process the `response` object:
 		    	    	System.out.println(response2);
 		}
-		//giving the current column to class field for further use
-		currentCol = currentColumn;
+		
 		//getting the next column
-		if (!currentCol.substring(currentCol.length()-1, currentCol.length()).equalsIgnoreCase("Z") || !currentCol.substring(currentCol.length()-1, currentCol.length()).equalsIgnoreCase("Y")) {
-    		int charValue = currentCol.charAt(currentCol.length()-1);
-    		if (currentCol.length()>1) {
-    			nextCol = currentCol.substring(0, currentCol.length()-1) + String.valueOf((char) (charValue + 2));
-    			
-    		} else {
-    			nextCol = String.valueOf((char) (charValue + 2));
-    			
-    		}
-    	} else {
-    		if (!currentCol.substring(currentCol.length()-1, currentCol.length()).equalsIgnoreCase("Y")) {
-    			nextCol = "AA";
-    			
-    		} else {
-    			nextCol = "AA";
-    		}
-    	}
+		nextCol = columnArray.get(columnArray.indexOf(currentColumn)+1);
 		
 		//create an arrayList of members based on spreadsheet
-        String nameListRange = "Attendance Sheet!C3:C";
+        String nameListRange = "Attendance Sheet!C" + rowNumOffset + ":C";
         ValueRange nameList = service.spreadsheets().values()
             .get(spreadsheetId, nameListRange)
             .execute();
@@ -257,7 +246,7 @@ public class AttendanceRunner {
             System.out.println("No data found.");
         } else {
           for (int i = 0; i <nameValues.size(); i++) {
-            roster.add(new Member((String) nameValues.get(i).get(0), i+3));
+            roster.add(new Member((String) nameValues.get(i).get(0), i+rowNumOffset));
           }
           
         }
@@ -265,7 +254,7 @@ public class AttendanceRunner {
         printRoster();
 		
 		//refresh any that needs to be refreshed
-		String refreshIndicatorRange = "Attendance Sheet!B2:B";
+		String refreshIndicatorRange = "Attendance Sheet!B" + rowNumOffset + ":B";
 		ValueRange refreshList = service.spreadsheets().values()
 	            .get(spreadsheetId, refreshIndicatorRange)
 	            .execute();
@@ -275,8 +264,20 @@ public class AttendanceRunner {
 	        } else {
 	          for (int i = 0; i <refreshIndicatorValues.size(); i++) {
 	        	  if (((String)(refreshIndicatorValues.get(i).get(0))).length()!=0) {
-	        		  System.out.println("Refreshing " + roster.get(i+2).getName());
-	        		  refresh(i+2);
+	        		  System.out.println("Refreshing " + roster.get(i).getName());
+	        		  refresh(roster.get(i).getRowNumber());
+	        		  
+	        		//reset the cell to blank
+	        		  List<List<Object>> blankList = Arrays.asList(
+      						Arrays.asList((Object) ""));
+	    	          
+	    	  					ValueRange requestBodyForBlanks = new ValueRange()
+	    	  					.setValues(blankList);
+	    	  	    	Sheets.Spreadsheets.Values.Update requestForBlanks =
+	    	  	    	sheetService.spreadsheets().values().update(sheetSpreadsheetId, "Attendance Sheet!B"+roster.get(i).getRowNumber()+":B"+roster.get(i).getRowNumber(), requestBodyForBlanks);
+	    	  	    	requestForBlanks.setValueInputOption("USER_ENTERED");
+	    	  	    	UpdateValuesResponse responseBlanks = requestForBlanks.execute();
+	    	  	    	System.out.println(responseBlanks);
 	        		
 	        	  }
 	            
@@ -291,10 +292,9 @@ public class AttendanceRunner {
 	    //quit by typing "quit"
         boolean takingRoll = true;
         Scanner input = new Scanner(System.in);
+        System.out.println("Log in/out by typing your first name as listed on the attendance sheet (not case-sensitive) on the Google spreadsheet and hitting the enter key: ");
         while (takingRoll) {
-        	System.out.println("Log in/out by typing your first name as listed on the attendance sheet (not case-sensitive) on the Google spreadsheet and hitting the enter key: ");
-        	if (input.hasNext())
-        	{
+        	if (input.hasNext()) {
         	String nameInput = input.nextLine().trim();
         	for (Member mem : roster) {
         		if (nameInput.equalsIgnoreCase(mem.getName())) {
@@ -320,21 +320,12 @@ public class AttendanceRunner {
         			    	System.out.println("Entering a time in for " + mem.getName());
 
         			    	UpdateValuesResponse responseTime = requestForTime.execute();
+        			    	System.out.println(responseTime);
+        			    	
         			    	
         	    		
         	        } else {
-        	        	String nextColumn = "";
-        	        	if (currentColumn.substring(currentColumn.length()-1, currentColumn.length()).equalsIgnoreCase("Z")) {
-        	        		nextColumn = "AA";
-        	        	} else {
-        	        		int charValue = currentColumn.charAt(currentColumn.length()-1);
-            		    	if (currentColumn.length()>1) {
-            		    		nextColumn = currentColumn.substring(0, currentColumn.length()-1) + String.valueOf((char) (charValue + 1));
-            		    		} else {
-            		    			nextColumn = String.valueOf((char) (charValue + 1));
-            		    		}
-        	        	}
-        		    
+        	        	
            	        	Date time = new Date();
         	    		DateFormat dateFormatTime = new SimpleDateFormat("HH:mm");
         	    		String newTime = dateFormatTime.format(time);
@@ -345,12 +336,16 @@ public class AttendanceRunner {
         							ValueRange requestBodyForTime = new ValueRange()
         							.setValues(timeVal);
         			    	Sheets.Spreadsheets.Values.Update requestForTime =
-        			    	service.spreadsheets().values().update(spreadsheetId, "Attendance Sheet!"+nextColumn+mem.getRowNumber()+":"+nextColumn+mem.getRowNumber(), requestBodyForTime);
+        			    	service.spreadsheets().values().update(spreadsheetId, "Attendance Sheet!"+nextCol+mem.getRowNumber()+":"+nextCol+mem.getRowNumber(), requestBodyForTime);
         			    	requestForTime.setValueInputOption("USER_ENTERED");
         			    	
         			    	System.out.println("Entering a time out for " + mem.getName());
 
         			    	UpdateValuesResponse responseTime = requestForTime.execute();
+        			    	System.out.println(responseTime);
+        			    	
+        			    	System.out.println("Refreshing " + mem.getName());
+        			    	refresh(mem.getRowNumber());
         			    	
         	        	
         	        }
@@ -379,7 +374,11 @@ public class AttendanceRunner {
         		System.out.println("Quitting...");
         		takingRoll = false;
         	}
+        	
+        	if (takingRoll) {
+        		System.out.println("Log in/out by typing your first name as listed on the attendance sheet (not case-sensitive) on the Google spreadsheet and hitting the enter key: ");
         	}
+        }
         }
         input.close();
     }
@@ -409,13 +408,14 @@ public class AttendanceRunner {
 	    	sheetService.spreadsheets().values().update(sheetSpreadsheetId, "Attendance Sheet!"+attendanceRateCol+rowNum+":"+numOfHoursCol+rowNum, requestBodyForStats);
 	    	requestForStats.setValueInputOption("USER_ENTERED");
 	    	UpdateValuesResponse responseStats = requestForStats.execute();
+	    	System.out.println(responseStats);
 	    	
     	
     }
     
     public static int getTotalDays(int rowNum) throws IOException {
     	ValueRange dayList = sheetService.spreadsheets().values()
-	            .get(sheetSpreadsheetId, "Attendance Sheet!"+officialCol+rowNum+":"+nextCol+rowNum)
+	            .get(sheetSpreadsheetId, "Attendance Sheet!"+attendanceStartCol+rowNum+":"+nextCol+rowNum)
 	            .execute();
 	        List<List<Object>> dayValues = dayList.getValues();
 	        int dayNum = 0;
@@ -437,7 +437,7 @@ public class AttendanceRunner {
     
     public static double getTotalHours(int rowNum) throws IOException {
     	ValueRange hourList = sheetService.spreadsheets().values()
-	            .get(sheetSpreadsheetId, "Attendance Sheet!"+officialCol+rowNum+":"+nextCol+rowNum)
+	            .get(sheetSpreadsheetId, "Attendance Sheet!"+hourStartCol+rowNum+":"+nextCol+rowNum)
 	            .execute();
 	        List<List<Object>> hourValues = hourList.getValues();
 	        double hourNum = 0;
@@ -462,6 +462,20 @@ public class AttendanceRunner {
 	        	System.out.println("No data found for row number " + rowNum);
 	        	return 0;
 	        }
+    	
+    }
+    
+    public static ArrayList<String> getColumnArray() {
+    	ArrayList<String> columnArray = new ArrayList<String>();
+    	for (int i = 65; i <= 90; i++) {
+    		columnArray.add(Character.toString((char)i));
+    	}
+    	for (int i = 65; i <= 67; i++) {
+    		for (int k = 65; k <= 90; k++) {
+    			columnArray.add(Character.toString((char)i) + Character.toString((char)k));
+    		}
+    	}
+    	return columnArray;
     	
     }
 

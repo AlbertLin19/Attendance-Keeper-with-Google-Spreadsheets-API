@@ -450,9 +450,19 @@ public class AttendanceRunner {
 		        			
 		        			StringTokenizer str1 = new StringTokenizer(timeIn, ":");
 		        			StringTokenizer str2 = new StringTokenizer(timeOut, ":");
-		        			int fullHours = Integer.parseInt(str2.nextToken())-Integer.parseInt(str1.nextToken());
+		        			int fullHours = 0;
+		        			double partialHours = 0;
+		        			try {
+		        				fullHours = Integer.parseInt(str2.nextToken())-Integer.parseInt(str1.nextToken());
+		        				partialHours = Double.parseDouble(str2.nextToken())/60-Double.parseDouble(str1.nextToken())/60;
+		        			} catch (NumberFormatException e) {
+		        				System.out.println("An NumberFormatException has occurred trying to parse time entry in hour rate slot " + i+1 + "...");
+		        				System.out.println("Will count the hours in the " + i+1 + " hour rate slot to be 0!");
+		        				fullHours = 0;
+		        				partialHours = 0;
+		        			}
+		        			
 		        			hourNum+=fullHours;
-		        			double partialHours = Double.parseDouble(str2.nextToken())/60-Double.parseDouble(str1.nextToken())/60;
 		        			hourNum+=partialHours;
 		        		}
 		        	}

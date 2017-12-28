@@ -443,7 +443,7 @@ public class AttendanceRunner {
 	        double hourNum = 0;
 	        if (hourValues != null && hourValues.size()!=0) {
 	        	for (List<Object> list : hourValues) {
-		        	for (int i = 0; i+1< list.size(); i+=2) {
+		        	for (int i = 0; i+1 < list.size(); i+=2) {
 		        		if (((String) list.get(i)).length()!=0 && ((String) list.get(i+1)).length()!=0) {
 		        			String timeIn = (String) list.get(i);
 		        			String timeOut = (String) list.get(i+1);

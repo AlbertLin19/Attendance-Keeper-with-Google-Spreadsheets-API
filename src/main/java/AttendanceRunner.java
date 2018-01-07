@@ -153,7 +153,7 @@ public class AttendanceRunner {
         sheetService = service;
 
         // Get Old Date and Old Column
-        String spreadsheetId = "1L9D1xp9WsVt0UkRq9ggEhWJged5NRxlaRmQOdIE8clg";
+        String spreadsheetId = "125gAQVShcHUiMHXDQ1nYFQnweH91lPYE9aOgPs0mAVE";
         //give the ID to class field for further use
         sheetSpreadsheetId = spreadsheetId;
         String oldDateRange = "Attendance Sheet!A2:A2";
@@ -263,7 +263,7 @@ public class AttendanceRunner {
 	            System.out.println("No refresh needed.");
 	        } else {
 	          for (int i = 0; i <refreshIndicatorValues.size(); i++) {
-	        	  if (((String)(refreshIndicatorValues.get(i).get(0))).length()!=0) {
+	        	  if (refreshIndicatorValues.get(i).size() > 0 && ((String)(refreshIndicatorValues.get(i).get(0))).length()!=0) {
 	        		  System.out.println("Refreshing " + roster.get(i).getName());
 	        		  refresh(roster.get(i).getRowNumber());
 	        		  

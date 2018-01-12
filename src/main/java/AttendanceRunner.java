@@ -186,7 +186,7 @@ public class AttendanceRunner {
         
         //get the current date
         Date date = new Date();
-		DateFormat dateFormat = new SimpleDateFormat("MM/dd/yy");
+		DateFormat dateFormat = new SimpleDateFormat("M/d/yy");
 		String newDate = dateFormat.format(date);
 		
 		//writing new date if it is a new day and setting and writing new column

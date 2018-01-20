@@ -58,7 +58,7 @@ public class AttendanceRunner {
     static ArrayList<Member> roster = new ArrayList<>();
     
     //row number of the official meeting times
-    static int officialRow = 2;
+    static final int officialRow = 2;
     
     //column letter of important first columns
     static String attendanceStartCol;
@@ -66,6 +66,7 @@ public class AttendanceRunner {
     
     static String currentColumn;
     static String nextCol;
+    static String currentDate;
     
     static String attendanceRateCol = "D";
     
@@ -78,16 +79,26 @@ public class AttendanceRunner {
     //sheet service reference for entire class to use
     static Sheets sheetService;
     
-    static String sheetSpreadsheetId;
-    
     //ArrayList to hold values of the columns of a Google Spreadsheet until "BZ"
     static ArrayList<String> columnArray;
     
     //the row the first member (including member "Team") is off from the top
     static int rowNumOffset = 2;
 
+    static String oldDateRange = "Attendance Sheet!A2:A2";
+    static String oldColumnRange = "Attendance Sheet!A5:A5";
+    static String attendanceStartColRange = "Attendance Sheet!A8:A8";
+    static String hourStartColRange = "Attendance Sheet!A11:A11";
+    static String nameListRange = "Attendance Sheet!C" + rowNumOffset + ":C";
+    static String refreshIndicatorRange = "Attendance Sheet!B" + rowNumOffset + ":B";
+    
+    static String sheetSpreadsheetId = "125gAQVShcHUiMHXDQ1nYFQnweH91lPYE9aOgPs0mAVE";
+    
+	
+    
     static {
     	columnArray = getColumnArray();
+        
     	if (System.getProperty("os.name").equals("Linux")) {
     		System.out.println("Hopefully, this is Linux.");
     		DATA_STORE_DIR = new java.io.File(
@@ -147,99 +158,40 @@ public class AttendanceRunner {
     public static void main(String[] args) throws IOException, InterruptedException {
     	
         // Build a new authorized API client service.
-        Sheets service = getSheetsService();
-        
-        //give the reference to the class field for outside use
-        sheetService = service;
+        sheetService = getSheetsService();
 
-        // Get Old Date and Old Column
-        String spreadsheetId = "125gAQVShcHUiMHXDQ1nYFQnweH91lPYE9aOgPs0mAVE";
-        //give the ID to class field for further use
-        sheetSpreadsheetId = spreadsheetId;
-        String oldDateRange = "Attendance Sheet!A2:A2";
-        String oldColumnRange = "Attendance Sheet!A5:A5";
-        ValueRange oldDateList = service.spreadsheets().values()
-            .get(spreadsheetId, oldDateRange)
+        // Get Old Date and Old Column and Assigning them to currentDate and currentColumn, and initializing nextCol
+        ValueRange oldDateList = sheetService.spreadsheets().values()
+            .get(sheetSpreadsheetId, oldDateRange)
             .execute();
         List<List<Object>> dateValue = oldDateList.getValues();
-        ValueRange oldColumnList = service.spreadsheets().values()
-            .get(spreadsheetId, oldColumnRange)
+        ValueRange oldColumnList = sheetService.spreadsheets().values()
+            .get(sheetSpreadsheetId, oldColumnRange)
             .execute();
         List<List<Object>> columnValue = oldColumnList.getValues();
-        String oldDate = (String) dateValue.get(0).get(0);
-        String oldColumn = (String) columnValue.get(0).get(0);
-        currentColumn = oldColumn;
+        currentDate = (String) dateValue.get(0).get(0);
+        currentColumn = (String) columnValue.get(0).get(0);
+        nextCol = columnArray.get(columnArray.indexOf(currentColumn)+1);
+        
+        //create a new column for a new day if necessary and refreshing all days
+        checkDay();
         
         //getting start column for attendance and hour rates
-        String attendanceStartColRange = "Attendance Sheet!A8:A8";
-        String hourStartColRange = "Attendance Sheet!A11:A11";
-        ValueRange attendanceStartColList = service.spreadsheets().values()
-            .get(spreadsheetId, attendanceStartColRange)
+        ValueRange attendanceStartColList = sheetService.spreadsheets().values()
+            .get(sheetSpreadsheetId, attendanceStartColRange)
             .execute();
         List<List<Object>> attendanceStartColValue = attendanceStartColList.getValues();
-        ValueRange hourStartColList = service.spreadsheets().values()
-            .get(spreadsheetId, hourStartColRange)
+        ValueRange hourStartColList = sheetService.spreadsheets().values()
+            .get(sheetSpreadsheetId, hourStartColRange)
             .execute();
         List<List<Object>> hourStartColValue = hourStartColList.getValues();
         attendanceStartCol = (String) attendanceStartColValue.get(0).get(0);
         hourStartCol = (String) hourStartColValue.get(0).get(0);
         
-        //get the current date
-        Date date = new Date();
-		DateFormat dateFormat = new SimpleDateFormat("M/d/yy");
-		String newDate = dateFormat.format(date);
-		
-		//writing new date if it is a new day and setting and writing new column
-		//also giving new column value to currentColumn variable for further use
-		if (!newDate.equals(oldDate)) {
-			
-			List<List<Object>> values = Arrays.asList(
-				Arrays.asList((Object) newDate)
-					// Additional rows ...
-					);
-					ValueRange requestBody = new ValueRange()
-					.setValues(values);
-	    	Sheets.Spreadsheets.Values.Update request =
-	    	service.spreadsheets().values().update(spreadsheetId, "Attendance Sheet!A2:A2", requestBody);
-	    	request.setValueInputOption("USER_ENTERED");
-
-	    	UpdateValuesResponse response = request.execute();
-
-	    	System.out.println(response);
-	    	System.out.println("Creating a new column for a new day!");
-	    	currentColumn = columnArray.get(columnArray.indexOf(oldColumn)+2);
-	    	
-	    	//writing out the new column
-	    	List<List<Object>> columnVal = Arrays.asList(
-					Arrays.asList((Object) (String) (currentColumn))
-						// Additional rows ...
-						);
-						ValueRange requestBodyForCol = new ValueRange()
-						.setValues(columnVal);
-		    	Sheets.Spreadsheets.Values.Update requestForCol =
-		    	service.spreadsheets().values().update(spreadsheetId, "Attendance Sheet!A5:A5", requestBodyForCol);
-		    	requestForCol.setValueInputOption("USER_ENTERED");
-
-		    	UpdateValuesResponse responseCol = requestForCol.execute();
-		    	System.out.println(responseCol);
-		    	
-		    	Sheets.Spreadsheets.Values.Update request2 =
-		    	    	service.spreadsheets().values().update(spreadsheetId, "Attendance Sheet!" + currentColumn + "1:" + currentColumn + "1", requestBody);
-		    	    	request2.setValueInputOption("USER_ENTERED");
-
-		    	    	UpdateValuesResponse response2 = request2.execute();
-
-		    	    	// TODO: Change code below to process the `response` object:
-		    	    	System.out.println(response2);
-		}
-		
-		//getting the next column
-		nextCol = columnArray.get(columnArray.indexOf(currentColumn)+1);
-		
+        
 		//create an arrayList of members based on spreadsheet
-        String nameListRange = "Attendance Sheet!C" + rowNumOffset + ":C";
-        ValueRange nameList = service.spreadsheets().values()
-            .get(spreadsheetId, nameListRange)
+        ValueRange nameList = sheetService.spreadsheets().values()
+            .get(sheetSpreadsheetId, nameListRange)
             .execute();
         List<List<Object>> nameValues = nameList.getValues();
         if (nameValues == null || nameValues.size() == 0) {
@@ -254,9 +206,8 @@ public class AttendanceRunner {
         printRoster();
 		
 		//refresh any that needs to be refreshed
-		String refreshIndicatorRange = "Attendance Sheet!B" + rowNumOffset + ":B";
-		ValueRange refreshList = service.spreadsheets().values()
-	            .get(spreadsheetId, refreshIndicatorRange)
+		ValueRange refreshList = sheetService.spreadsheets().values()
+	            .get(sheetSpreadsheetId, refreshIndicatorRange)
 	            .execute();
 	        List<List<Object>> refreshIndicatorValues = refreshList.getValues();
 	        if (refreshIndicatorValues == null || refreshIndicatorValues.size() == 0) {
@@ -295,12 +246,13 @@ public class AttendanceRunner {
         System.out.println("Log in/out by typing your first name as listed on the attendance sheet (not case-sensitive) on the Google spreadsheet and hitting the enter key: ");
         while (takingRoll) {
         	if (input.hasNext()) {
+        	checkDay();
         	String nameInput = input.nextLine().trim();
         	for (Member mem : roster) {
         		if (nameInput.equalsIgnoreCase(mem.getName())) {
         			String timeListRange = "Attendance Sheet!"+currentColumn+mem.getRowNumber()+":"+currentColumn+mem.getRowNumber();
-        	        ValueRange timeList = service.spreadsheets().values()
-        	            .get(spreadsheetId, timeListRange)
+        	        ValueRange timeList = sheetService.spreadsheets().values()
+        	            .get(sheetSpreadsheetId, timeListRange)
         	            .execute();
         	        List<List<Object>> timeValues = timeList.getValues();
         	        if (timeValues == null || timeValues.size() == 0) {
@@ -314,7 +266,7 @@ public class AttendanceRunner {
         							ValueRange requestBodyForTime = new ValueRange()
         							.setValues(timeVal);
         			    	Sheets.Spreadsheets.Values.Update requestForTime =
-        			    	service.spreadsheets().values().update(spreadsheetId, "Attendance Sheet!"+currentColumn+mem.getRowNumber()+":"+currentColumn+mem.getRowNumber(), requestBodyForTime);
+        			    	sheetService.spreadsheets().values().update(sheetSpreadsheetId, "Attendance Sheet!"+currentColumn+mem.getRowNumber()+":"+currentColumn+mem.getRowNumber(), requestBodyForTime);
         			    	requestForTime.setValueInputOption("USER_ENTERED");
         			    	
         			    	System.out.println("Entering a time in for " + mem.getName());
@@ -336,7 +288,7 @@ public class AttendanceRunner {
         							ValueRange requestBodyForTime = new ValueRange()
         							.setValues(timeVal);
         			    	Sheets.Spreadsheets.Values.Update requestForTime =
-        			    	service.spreadsheets().values().update(spreadsheetId, "Attendance Sheet!"+nextCol+mem.getRowNumber()+":"+nextCol+mem.getRowNumber(), requestBodyForTime);
+        			    	sheetService.spreadsheets().values().update(sheetSpreadsheetId, "Attendance Sheet!"+nextCol+mem.getRowNumber()+":"+nextCol+mem.getRowNumber(), requestBodyForTime);
         			    	requestForTime.setValueInputOption("USER_ENTERED");
         			    	
         			    	System.out.println("Entering a time out for " + mem.getName());
@@ -357,8 +309,8 @@ public class AttendanceRunner {
         			System.out.println("Refreshing all...");
         			for (Member mem : roster) {
         				refresh(mem.getRowNumber());
-        				//the below does not seem to help - this is necessary to avoid google api from causing a resource exhausted error (when the rate of writing to sheets is exceeded)
-        				//Thread.sleep(500);
+        				//this is necessary to avoid google api from causing a resource exhausted error (when the rate of writing to sheets is exceeded)
+        				Thread.sleep(4000);
         			}
         		} else {
         			for (Member mem : roster) {
@@ -371,6 +323,12 @@ public class AttendanceRunner {
         	}
         	
         	if (nameInput.equalsIgnoreCase("quit")) {
+        		System.out.println("Refreshing all...");
+    			for (Member mem : roster) {
+    				refresh(mem.getRowNumber());
+    				//this is necessary to avoid google api from causing a resource exhausted error (when the rate of writing to sheets is exceeded)
+    				Thread.sleep(4000);
+    			}
         		System.out.println("Quitting...");
         		takingRoll = false;
         	}
@@ -411,6 +369,77 @@ public class AttendanceRunner {
 	    	System.out.println(responseStats);
 	    	
     	
+    }
+    
+    /**
+     * checks whether a new column is needed for a new day, and creates one if so
+     * also refreshes all if new day
+     * @throws IOException 
+     * @throws InterruptedException 
+     */
+    public static void checkDay() throws IOException, InterruptedException {
+    	//get the current date
+        Date date = new Date();
+		DateFormat dateFormat = new SimpleDateFormat("M/d/yy");
+		String newDate = dateFormat.format(date);
+		
+		//writing new date if it is a new day and setting and writing new column
+		//also giving new column value to currentColumn variable for further use
+		if (!newDate.equals(currentDate)) {
+			
+			List<List<Object>> values = Arrays.asList(
+				Arrays.asList((Object) newDate)
+					// Additional rows ...
+					);
+					ValueRange requestBody = new ValueRange()
+					.setValues(values);
+	    	Sheets.Spreadsheets.Values.Update request =
+	    	sheetService.spreadsheets().values().update(sheetSpreadsheetId, "Attendance Sheet!A2:A2", requestBody);
+	    	request.setValueInputOption("USER_ENTERED");
+
+	    	UpdateValuesResponse response = request.execute();
+
+	    	System.out.println(response);
+	    	System.out.println("Creating a new column for a new day!");
+	    	currentColumn = columnArray.get(columnArray.indexOf(currentColumn)+2);
+	    	
+	    	//writing out the new column
+	    	List<List<Object>> columnVal = Arrays.asList(
+					Arrays.asList((Object) (String) (currentColumn))
+						// Additional rows ...
+						);
+						ValueRange requestBodyForCol = new ValueRange()
+						.setValues(columnVal);
+		    	Sheets.Spreadsheets.Values.Update requestForCol =
+		    	sheetService.spreadsheets().values().update(sheetSpreadsheetId, "Attendance Sheet!A5:A5", requestBodyForCol);
+		    	requestForCol.setValueInputOption("USER_ENTERED");
+
+		    	UpdateValuesResponse responseCol = requestForCol.execute();
+		    	System.out.println(responseCol);
+		    	
+		    	Sheets.Spreadsheets.Values.Update request2 =
+		    	    	sheetService.spreadsheets().values().update(sheetSpreadsheetId, "Attendance Sheet!" + currentColumn + "1:" + currentColumn + "1", requestBody);
+		    	    	request2.setValueInputOption("USER_ENTERED");
+
+		    	    	UpdateValuesResponse response2 = request2.execute();
+
+		    	    	// TODO: Change code below to process the `response` object:
+		    	    	System.out.println(response2);
+		    	    	
+		    	    	//getting the next column
+		    			nextCol = columnArray.get(columnArray.indexOf(currentColumn)+1);
+		    			
+		    			currentDate = newDate;
+		    			
+		    	    	System.out.println("Refreshing all...");
+	        			for (Member mem : roster) {
+	        				refresh(mem.getRowNumber());
+	        				//this is necessary to avoid google api from causing a resource exhausted error (when the rate of writing to sheets is exceeded)
+	        				Thread.sleep(4000);
+	        			}
+		}
+		
+		
     }
     
     public static int getTotalDays(int rowNum) throws IOException {
